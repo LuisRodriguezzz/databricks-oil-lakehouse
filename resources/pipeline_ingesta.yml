@@ -1,0 +1,30 @@
+# Pipeline declarativo de ingesta: de landing a bronze y de bronze a silver.
+#
+# No se le dice el orden de las tablas: el pipeline lo deduce de qué tabla lee a cuál.
+# Gold va en otro pipeline (paso 5), para que un job lo corra solo si este terminó bien.
+
+resources:
+  pipelines:
+    oil_ingesta:
+      name: oil_ingesta
+      catalog: ${var.catalog}
+      # Esquema por defecto: lo que no tenga nombre completo va a bronze.
+      schema: ${resources.schemas.bronze.name}
+      # Free Edition solo tiene serverless; en una empresa también es lo recomendado para
+      # pipelines nuevos: no hay clúster que dimensionar ni dejar prendido.
+      serverless: true
+      # Carpeta raíz del pipeline: Databricks la agrega al sys.path, así el código de
+      # transformations/ puede importar los módulos de utilities/.
+      root_path: ../src/ingesta
+      # Solo transformations/ define tablas; utilities/ son módulos que se importan.
+      libraries:
+        - glob:
+            include: ../src/ingesta/transformations/**
+      configuration:
+        oil_landing: /Volumes/${var.catalog}/landing/archivos
+        oil_bronze: ${var.catalog}.${resources.schemas.bronze.name}
+        oil_silver: ${var.catalog}.${resources.schemas.silver.name}
+        # Lanzado desde un job, el pipeline repite la corrida entera hasta 5 veces si falla, y
+        # trata la falla del control de calidad como pasajera. Esa falla no se arregla
+        # repitiendo: la corrida falla a la primera y avisa. Se reintenta con un repair.
+        pipelines.numUpdateRetryAttempts: "0"

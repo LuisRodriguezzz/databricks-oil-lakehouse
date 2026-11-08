@@ -1,0 +1,62 @@
+# Bundle del lakehouse de petróleo y gas en Databricks.
+#
+# Un bundle describe en archivos lo que se despliega (esquemas, pipelines, jobs) para que viva en
+# Git, se revise en un pull request y se despliegue igual en cada ambiente. Lo que no entra acá es
+# lo de plataforma (el catálogo y la zona de llegada de archivos): eso lo crea
+# scripts/plataforma.sh una sola vez por ambiente.
+
+bundle:
+  name: oil-lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Catálogo de Unity Catalog del ambiente (uno por ambiente).
+  aviso_email:
+    description: A quién le llega el mail cuando el job falla o tarda de más.
+  sp_prod:
+    description: >-
+      Application ID del service principal con el que corre prod. En prod se busca por su
+      nombre; en dev no se usa.
+    default: ""
+
+targets:
+  # Cada desarrollador despliega su propia copia desde su PC: en modo development, Databricks le
+  # agrega a cada recurso un prefijo con su usuario y pausa schedules y triggers.
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-1ef292f0-86b1.cloud.databricks.com
+    variables:
+      catalog: oil_dev
+      aviso_email: ${workspace.current_user.userName}
+
+  # Prod lo despliega solo el CI, al hacer merge a main. Sin prefijos, con los disparadores
+  # activos y corriendo como un service principal: no depende de ninguna persona.
+  # En Free Edition hay un solo workspace; en una empresa, prod tendría el suyo y el catálogo
+  # oil_prod estaría atado solo a ese workspace.
+  prod:
+    mode: production
+    workspace:
+      host: https://dbc-1ef292f0-86b1.cloud.databricks.com
+      # Una sola copia de prod, en la carpeta del service principal, la despliegue quien la
+      # despliegue. Sin esto, cada persona que desplegara prod crearía otra copia en su carpeta.
+      root_path: /Workspace/Users/${var.sp_prod}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: oil_prod
+      aviso_email: alberto.rodriguezaguilar@ingenieria.uner.edu.ar
+      sp_prod:
+        lookup:
+          service_principal: oil-lakehouse-prod
+    run_as:
+      service_principal_name: ${var.sp_prod}
+    # El service principal administra prod (es quien despliega). Las personas pueden correr y
+    # reparar; cambiarlo es trabajo del CI.
+    permissions:
+      - service_principal_name: ${var.sp_prod}
+        level: CAN_MANAGE
+      - user_name: alberto.rodriguezaguilar@ingenieria.uner.edu.ar
+        level: CAN_RUN

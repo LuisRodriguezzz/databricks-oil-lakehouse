@@ -1,0 +1,88 @@
+# Equivalente en Azure DevOps de .github/workflows/ci.yml y cd.yml.
+#
+# NO SE CORRIÓ: no hay una organización de Azure DevOps, y este workspace de Free Edition corre
+# en AWS. Es la referencia de cómo sería en una empresa con Azure Databricks.
+#
+# Equivalencias:
+#   workflow de GitHub Actions   -> este pipeline YAML de Azure Pipelines
+#   secretos del repo            -> variable group (o Azure Key Vault enlazado)
+#   OIDC del service principal   -> service connection con workload identity federation
+#   environment con aprobación   -> environment de Azure DevOps con "approvals and checks"
+
+trigger:
+  branches:
+    include: [main]
+
+pr:
+  branches:
+    include: [main]
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  # Variable group con DATABRICKS_HOST (la URL del workspace de prod).
+  - group: oil-lakehouse-prod
+  - name: DATABRICKS_BUNDLE_ENGINE
+    value: direct
+
+stages:
+  - stage: CI
+    jobs:
+      - job: tests
+        displayName: Tests y estilo
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: "3.12"
+          # La imagen ubuntu trae Java 17; PySpark lo encuentra con JAVA_HOME.
+          - script: |
+              export JAVA_HOME="$JAVA_HOME_17_X64"
+              pip install -r requirements-dev.txt
+              ruff check .
+              pytest
+            displayName: Tests
+
+      - job: validar
+        displayName: Validar el bundle
+        steps:
+          # La service connection entra a Azure como un service principal de Entra ID, sin
+          # secretos guardados (workload identity federation). La CLI de Databricks usa ese
+          # login con DATABRICKS_AUTH_TYPE=azure-cli.
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: sc-databricks-prod
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v1.23.0/install.sh | sh
+                databricks bundle validate -t prod
+            env:
+              DATABRICKS_AUTH_TYPE: azure-cli
+              DATABRICKS_HOST: $(DATABRICKS_HOST)
+
+  - stage: CD
+    dependsOn: CI
+    # Solo en main, nunca desde un pull request.
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: desplegar_prod
+        displayName: Desplegar prod
+        # El environment "oil-prod" puede pedir la aprobación de una persona antes de seguir.
+        environment: oil-prod
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                - task: AzureCLI@2
+                  inputs:
+                    azureSubscription: sc-databricks-prod
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    inlineScript: |
+                      curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/v1.23.0/install.sh | sh
+                      databricks bundle deploy -t prod
+                  env:
+                    DATABRICKS_AUTH_TYPE: azure-cli
+                    DATABRICKS_HOST: $(DATABRICKS_HOST)

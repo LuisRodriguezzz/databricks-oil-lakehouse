@@ -1,0 +1,48 @@
+# CI: corre en cada pull request a main, y el CD lo vuelve a correr antes de desplegar.
+#
+# 1. Tests y estilo: la lógica de silver con PySpark local, sin tocar Databricks.
+# 2. Validar el bundle: que dev y prod se puedan desplegar, entrando como el service principal.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests y estilo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # PySpark necesita Java 17 o superior.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: pytest
+
+  validar:
+    name: Validar el bundle
+    runs-on: ubuntu-latest
+    # OAuth M2M con un secret del service principal. Lo ideal es OIDC (workload identity
+    # federation), sin secretos guardados, pero en Free Edition no hay consola de cuenta donde
+    # crear la política de federación.
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_BUNDLE_ENGINE: direct
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v1.23.0
+      - run: databricks bundle validate -t dev
+      - run: databricks bundle validate -t prod

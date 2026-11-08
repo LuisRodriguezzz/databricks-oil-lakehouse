@@ -1,0 +1,18 @@
+# Un esquema por capa. El catálogo cambia por ambiente; el nombre del esquema, no.
+
+resources:
+  schemas:
+    bronze:
+      catalog_name: ${var.catalog}
+      name: bronze
+      comment: "Capa bronze: los archivos de landing tal cual llegaron, como texto y con su origen."
+
+    silver:
+      catalog_name: ${var.catalog}
+      name: silver
+      comment: "Capa silver: datos tipados y validados; lo que no cumple va a cuarentena."
+
+    gold:
+      catalog_name: ${var.catalog}
+      name: gold
+      comment: "Capa gold: tablas listas para analizar."

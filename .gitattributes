@@ -1,0 +1,2 @@
+# Fin de línea LF en el repo: los scripts .sh con CRLF fallan en el runner Linux del CI.
+* text=auto eol=lf

@@ -1,0 +1,37 @@
+# CD: al hacer merge a main, vuelve a correr el CI sobre lo que quedó en main y despliega prod.
+#
+# El deploy no corre el job: en prod el disparador por llegada de archivo está activo, así que
+# el job corre cuando llega una entrega, no cuando cambia el código.
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+# Un deploy a prod a la vez; si llegan dos merges seguidos, el segundo espera.
+concurrency:
+  group: prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    # El merge puede juntar cambios que nunca se probaron juntos: se prueba lo que quedó en main.
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  desplegar:
+    name: Desplegar prod
+    needs: ci
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_BUNDLE_ENGINE: direct
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@v1.23.0
+      - run: databricks bundle deploy -t prod

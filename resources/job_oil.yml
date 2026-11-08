@@ -1,0 +1,53 @@
+# Job que orquesta el lakehouse: ingesta (bronze, silver y control de calidad) y después gold.
+#
+# Gold depende de la ingesta y corre solo si terminó bien. Si el control de calidad falla, la
+# corrida de ingesta falla, gold no corre y se queda con su última versión buena.
+
+resources:
+  jobs:
+    oil_lakehouse:
+      name: oil_lakehouse
+      description: >-
+        Procesa cada entrega del portal: ingesta y control de calidad; gold solo si pasaron.
+
+      # Corre cuando llega un archivo a landing, no a una hora fija. Espera 60 segundos sin
+      # archivos nuevos, así producción y padrón llegados juntos disparan una sola corrida.
+      # En el target dev (mode: development) queda pausado: se lanza a mano.
+      trigger:
+        file_arrival:
+          url: /Volumes/${var.catalog}/landing/archivos/
+          wait_after_last_change_seconds: 60
+
+      # Una corrida a la vez: dos entregas seguidas no escriben las mismas tablas en paralelo.
+      max_concurrent_runs: 1
+
+      # Aviso si falla, y aviso si tarda más de 10 minutos (hoy tarda unos 2), antes del corte.
+      # En prod el que despliega es el service principal, que no tiene mail: por eso es una
+      # variable, y no ${workspace.current_user.userName}.
+      email_notifications:
+        on_failure:
+          - ${var.aviso_email}
+        on_duration_warning_threshold_exceeded:
+          - ${var.aviso_email}
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 600
+
+      # Sin reintentos del job: lanzado desde un job, el pipeline ya reintenta solo los errores
+      # recuperables, y una falla de calidad no se arregla repitiendo.
+      tasks:
+        - task_key: ingesta
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.oil_ingesta.id}
+          timeout_seconds: 1800
+
+        - task_key: gold
+          depends_on:
+            - task_key: ingesta
+          # El valor por defecto, escrito a propósito: gold solo si la ingesta terminó bien.
+          run_if: ALL_SUCCESS
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.oil_gold.id}
+          timeout_seconds: 1800

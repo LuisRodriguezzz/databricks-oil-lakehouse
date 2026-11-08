@@ -1,0 +1,22 @@
+# Pipeline de gold: tablas listas para analizar, calculadas desde silver.
+#
+# Va separado de la ingesta para que el job lo corra solo si la ingesta terminó bien, con el
+# control de calidad aprobado. Una regla dentro de un pipeline no frena lo que sigue; un job sí.
+
+resources:
+  pipelines:
+    oil_gold:
+      name: oil_gold
+      catalog: ${var.catalog}
+      # Esquema por defecto: lo que no tenga nombre completo va a gold.
+      schema: ${resources.schemas.gold.name}
+      serverless: true
+      root_path: ../src/gold
+      libraries:
+        - glob:
+            include: ../src/gold/transformations/**
+      configuration:
+        oil_silver: ${var.catalog}.${resources.schemas.silver.name}
+        # Un reintento de la corrida entera (en lugar de 5) para errores pasajeros: si el error
+        # es del código, repetirlo cinco veces solo demora el aviso.
+        pipelines.numUpdateRetryAttempts: "1"

@@ -1,0 +1,24 @@
+# Configuración de las herramientas de calidad del repo: tests (pytest) y estilo (ruff).
+# El código del pipeline no se instala como paquete: Databricks lo despliega con el bundle.
+
+[project]
+name = "oil-lakehouse"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+# Los tests importan `utilities` igual que el pipeline, que agrega src/ingesta al sys.path con
+# root_path (resources/pipeline_ingesta.yml).
+pythonpath = ["src/ingesta"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F: errores y nombres sin definir; I: orden de los imports.
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["utilities", "ayuda"]

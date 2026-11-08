@@ -1,0 +1,10 @@
+# Datos de muestra: se suben a landing, no se versionan.
+datos/
+
+# Estado local de los despliegues del bundle.
+.databricks/
+
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/

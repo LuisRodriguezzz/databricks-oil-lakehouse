@@ -1,0 +1,5 @@
+# Herramientas para los tests y el CI, con versión fija para que cada corrida use lo mismo.
+# PySpark necesita Java 17 o superior.
+pyspark==4.2.1
+pytest==9.2.0
+ruff==0.17.4
