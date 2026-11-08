@@ -51,3 +51,15 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.oil_gold.id}
           timeout_seconds: 1800
+        - task_key: conciliar_gold
+          depends_on:
+            - task_key: gold
+          # Solo si gold terminó bien: no tiene sentido conciliar un gold que falló.
+          run_if: ALL_SUCCESS
+          notebook_task:
+            notebook_path: ../src/controles/conciliar_gold.ipynb
+            # Variables, no nombres fijos: en dev llevan tu prefijo y en prod no.
+            base_parameters:
+              silver: ${var.catalog}.${resources.schemas.silver.name}
+              gold: ${var.catalog}.${resources.schemas.gold.name}
+          timeout_seconds: 1800
