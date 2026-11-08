@@ -7,7 +7,8 @@
 
 bundle:
   name: oil-lakehouse
-
+  engine: direct
+  
 include:
   - resources/*.yml
 

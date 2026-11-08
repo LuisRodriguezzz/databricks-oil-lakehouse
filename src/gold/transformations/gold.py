@@ -73,3 +73,18 @@ def produccion_mensual_empresa():
             F.countDistinct(F.when(produjo, F.col("idpozo"))).alias("pozos_activos"),
         )
     )
+
+
+@dp.materialized_view(
+    name="produccion_anual_empresa",
+    comment="Producción total por empresa y año: petróleo (m3) y gas (miles de m3).",
+)
+def produccion_anual_empresa():
+    return (
+        spark.read.table("produccion_mensual_empresa")  # noqa: F821
+        .groupBy("idempresa", "empresa", "anio")
+        .agg(
+            F.round(F.sum("petroleo_m3"), 2).alias("petroleo_m3"),
+            F.round(F.sum("gas_miles_m3"), 2).alias("gas_miles_m3"),
+        )
+    )
