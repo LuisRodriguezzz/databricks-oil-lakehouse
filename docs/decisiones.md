@@ -326,8 +326,10 @@ quedaría atado solo a ese workspace (*binding* ISOLATED).
 **D42 · Prod corre como un service principal (`run_as`) y en `mode: production`.**
 Por qué: no depende de una persona, que se puede ir de la empresa, y tiene solo los permisos que
 necesita. El modo production no pone prefijos y deja los disparadores activos. El service
-principal se busca por su nombre (`lookup`), así el repo no guarda su ID. Las personas tienen
-`CAN_RUN` en prod: pueden correr y reparar, pero cambiarlo es trabajo del CI.
+principal se busca por su nombre (`lookup`), así el repo no guarda su ID. Él tiene `CAN_MANAGE`
+(es quien despliega) y las personas `CAN_RUN`: pueden correr y reparar, pero cambiarlo es
+trabajo del CI. `workspace.root_path` apunta a la carpeta del service principal: hay una sola
+copia de prod, y su estado (qué ID tiene cada recurso), quien sea que despliegue.
 Descartado: correr prod como un usuario.
 
 **D43 · El mail de aviso es una variable.**

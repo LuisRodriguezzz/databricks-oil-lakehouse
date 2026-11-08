@@ -1,4 +1,4 @@
-# CD: al hacer merge a main, vuelve a correr el CI sobre lo que quedó en main y despliega prod.
+# CD: al hacer merge a main, vuelve a probar lo que quedó en main y despliega prod.
 #
 # El deploy no corre el job: en prod el disparador por llegada de archivo está activo, así que
 # el job corre cuando llega una entrega, no cuando cambia el código.
@@ -7,6 +7,7 @@ name: CD
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 # Un deploy a prod a la vez; si llegan dos merges seguidos, el segundo espera.
 concurrency:
@@ -17,14 +18,26 @@ permissions:
   contents: read
 
 jobs:
-  ci:
+  tests:
     # El merge puede juntar cambios que nunca se probaron juntos: se prueba lo que quedó en main.
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
+    name: Tests y estilo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: pytest
 
   desplegar:
     name: Desplegar prod
-    needs: ci
+    needs: tests
     runs-on: ubuntu-latest
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
@@ -34,4 +47,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@v1.23.0
+      # deploy también valida: si el bundle tiene un error, no despliega nada.
       - run: databricks bundle deploy -t prod

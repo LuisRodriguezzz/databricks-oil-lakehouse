@@ -1,4 +1,4 @@
-# CI: corre en cada pull request a main, y el CD lo vuelve a correr antes de desplegar.
+# CI: corre en cada pull request a main.
 #
 # 1. Tests y estilo: la lógica de silver con PySpark local, sin tocar Databricks.
 # 2. Validar el bundle: que dev y prod se puedan desplegar, entrando como el service principal.
@@ -7,7 +7,7 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read
